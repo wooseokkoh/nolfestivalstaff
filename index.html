@@ -172,6 +172,16 @@
   .wifi-row .w-sub { font-size: 13px; color: var(--muted); }
   .copy { flex: none; border: 1px solid var(--line); background: var(--soft); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
 
+  /* 비상연락망 */
+  .tel { flex: none; display: inline-flex; align-items: center; gap: 4px; text-decoration: none; border: 1px solid var(--accent);
+    color: var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 6px 10px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .tels { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+  .em-role { font-size: 13px; color: var(--muted); }
+  .em-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .em-head .badge { background: var(--soft); color: var(--muted); }
+  .em-head .badge.head { background: #ffe1e1; color: #8a1010; }
+  @media (prefers-color-scheme: dark) { .em-head .badge.head { background: #4a1818; color: #ffb3b3; } }
+
   /* 설정 */
   .field { display: block; margin-bottom: 12px; font-weight: 600; font-size: 15px; }
   .field .input { margin-top: 6px; padding-right: 14px; }
@@ -222,6 +232,7 @@
     <section id="tab-list" data-tab hidden></section>
     <section id="tab-band" data-tab hidden></section>
     <section id="tab-wifi" data-tab hidden></section>
+    <section id="tab-em" data-tab hidden></section>
     <section id="tab-set" data-tab hidden></section>
   </main>
   <nav class="tabs" role="tablist">
@@ -229,6 +240,7 @@
     <button role="tab" data-go="list"><span class="ico">🔎</span>명단 찾기</button>
     <button role="tab" data-go="band"><span class="ico">🎟️</span>팔찌</button>
     <button role="tab" data-go="wifi"><span class="ico">📶</span>와이파이</button>
+    <button role="tab" data-go="em"><span class="ico">🚨</span>비상연락</button>
     <button role="tab" data-go="set"><span class="ico">⚙️</span>설정</button>
   </nav>
 </div>
@@ -349,9 +361,9 @@ function go(tab) {
   store.set(LS.tab, tab);
   document.querySelectorAll('nav.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.go === tab)));
   document.querySelectorAll('[data-tab]').forEach((s) => { s.hidden = s.id !== 'tab-' + tab; });
-  const subs = { map: '· 배치도', list: '· 명단 찾기', band: '· 팔찌', wifi: '· 와이파이', set: '· 설정' };
+  const subs = { map: '· 배치도', list: '· 명단 찾기', band: '· 팔찌', wifi: '· 와이파이', em: '· 비상연락망', set: '· 설정' };
   $('#headSub').textContent = subs[tab];
-  ({ map: renderMap, list: renderList, band: renderBand, wifi: renderWifi, set: renderSet })[tab]();
+  ({ map: renderMap, list: renderList, band: renderBand, wifi: renderWifi, em: renderEm, set: renderSet })[tab]();
   window.scrollTo(0, 0);
 }
 
@@ -641,6 +653,52 @@ let toastTimer;
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 1800);
+}
+
+// ── 비상연락망 ──
+function telLinks(phone) {
+  return `<span class="tels">${String(phone).split('/').map((p) => p.trim()).filter(Boolean).map((p) =>
+    `<a class="tel" href="tel:${esc(p.replace(/[^0-9+]/g, ''))}">📞 ${esc(p)}</a>`).join('')}</span>`;
+}
+function renderEm() {
+  const el = $('#tab-em');
+  if (!DATA.emergency) { el.innerHTML = '<div class="card card-pad meta">비상연락망이 없습니다.</div>'; return; }
+  el.innerHTML = `
+    <div class="search"><div class="search-box">
+      <input class="input" id="eq" type="text" placeholder="이름·역할·기관 검색 (예: 9홀, 응급, 소방)" value="${esc(state.emQ || '')}" autocomplete="off">
+      <button class="clear" id="eqClear" type="button" aria-label="지우기" ${state.emQ ? '' : 'hidden'}>✕</button>
+    </div></div>
+    <div id="emBody" style="margin-top:8px"></div>`;
+  const q = $('#eq');
+  q.addEventListener('input', () => { state.emQ = q.value; $('#eqClear').hidden = !q.value; renderEmBody(); });
+  $('#eqClear').addEventListener('click', () => { state.emQ = ''; q.value = ''; $('#eqClear').hidden = true; renderEmBody(); });
+  renderEmBody();
+}
+function renderEmBody() {
+  const E = DATA.emergency, q = (state.emQ || '').trim(), nq = norm(q);
+  const hit = (...v) => !nq || v.some((x) => norm(x).includes(nq));
+  const row = (main, sub, phone, badge) => `<div class="wifi-row">
+      <div class="w-main"><div class="em-head" style="justify-content:flex-start"><b>${hl(main, q)}</b>${badge || ''}</div>
+      <div class="em-role">${sub}</div></div>${telLinks(phone)}</div>`;
+  let html = '';
+  const nol = E.nol.filter((m) => hit(m.role, m.name, m.phone, '놀유니버스'));
+  if (nol.length) html += `<div class="card"><div class="card-pad" style="padding-bottom:8px"><h3>놀유니버스 비상연락망</h3></div>
+    ${nol.map((m) => row(m.name, hl(m.role, q), m.phone)).join('')}</div>`;
+  E.groups.forEach((g) => {
+    const ms = g.members.filter((m) => hit(g.name, m.name, m.role, m.note, m.phone, m.org, '비상조직'));
+    if (!ms.length) return;
+    html += `<div class="card"><div class="card-pad" style="padding-bottom:8px"><h3>${hl(g.name, q)} <span class="meta">· 비상 조직 (${esc(ms[0].org)})</span></h3></div>
+      ${ms.map((m) => row(m.name, hl(m.role, q), m.phone,
+        `<span class="badge ${m.note.includes('총괄') ? 'head' : ''}" style="margin-left:6px">${esc(m.note.replace('안전', ''))}</span>`)).join('')}</div>`;
+  });
+  const ag = E.agencies.filter((a) => hit(a.name, a.dept, a.phone, a.note, '협조기관'));
+  if (ag.length) html += `<div class="card"><div class="card-pad" style="padding-bottom:8px"><h3>협조기관</h3></div>
+    ${ag.map((a) => {
+      const extra = a.note && a.note.includes(':') ? a.note.split(':') : null;
+      return row(a.name, hl(a.dept, q) + (a.note ? ' · ' + esc(a.note) : ''), a.phone + (extra ? ' / ' + extra[1] : ''));
+    }).join('')}
+    <div class="note-line">※ 유관기관: 지방자치단체, 병원, 경찰서, 소방서 등</div></div>`;
+  $('#emBody').innerHTML = html || '<div class="card card-pad meta">검색 결과가 없습니다.</div>';
 }
 
 // ── 설정 · 비밀번호 변경 ──
