@@ -350,7 +350,9 @@ function startApp() {
   const today = new Date();
   const md = `${today.getMonth() + 1}/${today.getDate()}`;
   const saved = store.get(LS.event);
-  state.event = (saved && evById(saved)) ? saved : (DATA.events.find((e) => e.date === md) || DATA.events[0]).id;
+  // 오늘 공연이 있으면 오늘 것을 먼저, 없으면 마지막으로 본 것
+  const todayEv = DATA.events.find((e) => e.date === md);
+  state.event = todayEv ? todayEv.id : (saved && evById(saved)) ? saved : DATA.events[0].id;
   state.listEvent = 'all';
   state.bandDate = DATA.bands.some((b) => b.date === md) ? md : 'all';
   document.querySelectorAll('nav.tabs button').forEach((b) => b.addEventListener('click', () => go(b.dataset.go)));
