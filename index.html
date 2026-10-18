@@ -115,6 +115,7 @@
   .tbl.z3 { background: var(--t3); color: var(--t3-text); }
   .tbl.sky { background: var(--sky); color: var(--sky-text); }
   .tbl.empty { opacity: .55; }
+  .tbl.sns { outline: 3px dashed var(--accent); outline-offset: -3px; }
   .tbl .tid { font-size: 11px; font-weight: 800; opacity: .85; }
   .tbl .tlabel { font-size: 13px; font-weight: 700; line-height: 1.2; white-space: pre-line; word-break: keep-all; }
   .tbl .tcount { font-size: 11px; opacity: .85; }
@@ -387,6 +388,7 @@ function renderMap() {
       <span><i style="background:var(--t1)"></i>TIER 1</span>
       <span><i style="background:var(--t2)"></i>TIER 2</span>
       ${ev.tiers.some((t) => t.id.startsWith('TIER 3')) ? '<span><i style="background:var(--t3)"></i>TIER 3</span>' : ''}
+      ${ev.tiers.some((t) => t.kind === 'sns') ? '<span>점선 = 🎁 SNS 이벤트석</span>' : ''}
       <span>흐린 칸 = 명단 없음</span>
     </div>
     <h2>원본 배치도</h2>
@@ -418,10 +420,10 @@ function floorHtml(ev) {
       const t = byId[id];
       if (!t) return;
       const n = sumCount(t);
-      cells += `<button type="button" class="tbl ${zoneOf(t)}${t.rows.length ? '' : ' empty'}" style="${pos}" data-tier="${esc(t.id)}">
+      cells += `<button type="button" class="tbl ${zoneOf(t)}${t.kind === 'sns' ? ' sns' : t.rows.length ? '' : ' empty'}" style="${pos}" data-tier="${esc(t.id)}">
         <span class="tid">${esc(shortId(t))}</span>
         <span class="tlabel">${esc(t.label)}</span>
-        <span class="tcount">${n}명${t.seats ? ' / ' + t.seats + '석' : ''}</span>
+        <span class="tcount">${t.kind === 'sns' ? '🎁 이벤트석' : n + '명'}${t.seats ? ' / ' + t.seats + '석' : ''}</span>
       </button>`;
     });
   });
@@ -512,8 +514,14 @@ function renderListBody() {
     evs.forEach((ev) => ev.tiers.forEach((t) => t.rows.forEach((r) => {
       if (rowMatches(r, t, q, state.field)) hits.push({ ev, t, r });
     })));
-    const people = hits.reduce((n, h) => n + (parseInt(h.r.count, 10) || 1), 0);
-    body.innerHTML = `<div class="meta">검색 결과 ${hits.length}건${hits.length ? ` · ${people}명` : ''}</div>` + (hits.length ? `<div class="card">${hits.map(({ ev, t, r }) => `
+    // 명단이 없는 테이블(SNS 이벤트석 등)도 테이블 이름으로 찾기
+    if (state.field === 'all') evs.forEach((ev) => ev.tiers.forEach((t) => {
+      if (!t.rows.length && [t.title, t.label, t.id].some((v) => norm(v).includes(norm(q)))) {
+        hits.push({ ev, t, r: { name: t.title, company: '', count: '', note: t.kind === 'sns' ? '사전 명단 없음 · 현장 당첨 확인' : '명단 없음' } });
+      }
+    }));
+    const people = hits.reduce((n, h) => n + (parseInt(h.r.count, 10) || (h.t.rows.length ? 1 : 0)), 0);
+    body.innerHTML = `<div class="meta">검색 결과 ${hits.length}건${people ? ` · ${people}명` : ''}</div>` + (hits.length ? `<div class="card">${hits.map(({ ev, t, r }) => `
       <div class="result">
         <div class="r-main">
           <div class="r-name">${hl(r.name, q)}</div>
@@ -556,10 +564,10 @@ function tierCard(ev, t) {
   return `<div class="card tier" data-key="${esc(key)}" open-state="${open ? 1 : 0}">
     <button class="tier-head" type="button" aria-expanded="${open}">
       <span class="badge ${zoneOf(t)}">${esc(t.id)}</span>
-      <span class="tt"><b>${esc(t.title)}</b><span>${t.rows.length ? `${t.rows.length}줄 · ${n}명` : '명단 없음'}${t.seats ? ` · ${t.seats}인석` : ''}${t.label.replace(/\n/g, ' ') !== t.title ? ` · 배치도: ${esc(t.label.replace(/\n/g, ' '))}` : ''}</span></span>
+      <span class="tt"><b>${esc(t.title)}</b><span>${t.rows.length ? `${t.rows.length}줄 · ${n}명` : t.kind === 'sns' ? '🎁 SNS 이벤트 · 사전 명단 없음' : '명단 없음'}${t.seats ? ` · ${t.seats}인석` : ''}${t.label.replace(/\n/g, ' ') !== t.title ? ` · 배치도: ${esc(t.label.replace(/\n/g, ' '))}` : ''}</span></span>
       <span class="arrow">›</span>
     </button>
-    ${open ? (t.rows.length ? rowsHtml : '<div class="empty-msg">등록된 명단이 없습니다.</div>') + (t.note ? `<div class="note-line">※ ${esc(t.note)}</div>` : '') : ''}
+    ${open ? (t.rows.length ? rowsHtml : `<div class="empty-msg">${t.kind === 'sns' ? 'SNS 이벤트 당첨자 좌석입니다. 사전 명단이 없으니 현장에서 당첨 확인 후 안내해 주세요.' : '등록된 명단이 없습니다.'}</div>`) + (t.note ? `<div class="note-line">※ ${esc(t.note)}</div>` : '') : ''}
   </div>`;
 }
 
