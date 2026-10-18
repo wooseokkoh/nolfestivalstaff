@@ -423,7 +423,7 @@ function floorHtml(ev) {
       cells += `<button type="button" class="tbl ${zoneOf(t)}${t.kind === 'sns' ? ' sns' : t.rows.length ? '' : ' empty'}" style="${pos}" data-tier="${esc(t.id)}">
         <span class="tid">${esc(shortId(t))}</span>
         <span class="tlabel">${esc(t.label)}</span>
-        <span class="tcount">${t.kind === 'sns' ? '🎁 이벤트석' : n + '명'}${t.seats ? ' / ' + t.seats + '석' : ''}</span>
+        <span class="tcount">${t.kind === 'sns' ? '🎁 ' + (t.rows.length ? n + '명' : '이벤트석') : n + '명'}${t.seats ? ' / ' + t.seats + '석' : ''}</span>
       </button>`;
     });
   });
